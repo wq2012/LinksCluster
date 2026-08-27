@@ -11,16 +11,6 @@ Python implementation of the **Links** high-dimensional online clustering algori
 
 Links is an online clustering algorithm designed to cluster high-dimensional unit vectors efficiently in real time as data streams in. Unlike traditional batch clustering algorithms (such as [SpectralCluster](https://github.com/wq2012/SpectralCluster) or k-means) that require concurrent access to all data points, Links assigns each new datum to a cluster immediately upon arrival with no knowledge of future vectors and no backtracking.
 
-This library is a Python implementation of the algorithm described in the ICASSP 2018 paper:
-
-> **Links: A High-Dimensional Online Clustering Method**  
-> Philip Andrew Mansfield, Quan Wang, Carlton Downey, Li Wan, Ignacio Lopez Moreno  
-> *ICASSP 2018* ([arXiv:1801.10123](https://arxiv.org/abs/1801.10123))
-
-Links has been successfully applied to:
-- **Face recognition & clustering**: CNN-based FaceNet embeddings ([Schroff et al., CVPR 2015](https://www.cv-foundation.org/openaccess/content_cvpr_2015/html/Schroff_FaceNet_A_Unified_2015_CVPR_paper.html)).
-- **Real-time speaker diarization**: LSTM-based voice embeddings trained with Generalized End-to-End (GE2E) loss ([Wan et al., 2017](https://arxiv.org/abs/1710.10467); [Wang et al., 2017](https://arxiv.org/abs/1710.10468)).
-
 ---
 
 ## Disclaimer
@@ -227,24 +217,12 @@ If you use Links in your research, please cite:
   year={2018},
   organization={IEEE}
 }
-```
 
-Related publications:
-```bibtex
 @inproceedings{wang2018speaker,
   title={Speaker diarization with LSTM},
   author={Wang, Quan and Downey, Carlton and Wan, Li and Mansfield, Philip Andrew and Moreno, Ignacio Lopez},
   booktitle={IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)},
   pages={5239--5243},
-  year={2018},
-  organization={IEEE}
-}
-
-@inproceedings{wan2018generalized,
-  title={Generalized end-to-end loss for speaker verification},
-  author={Wan, Li and Wang, Quan and Papir, Alan and Moreno, Ignacio Lopez},
-  booktitle={IEEE International Conference on Acoustics, Speech and Signal Processing (ICASSP)},
-  pages={4879--4883},
   year={2018},
   organization={IEEE}
 }
