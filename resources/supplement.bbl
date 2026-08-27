@@ -1,0 +1,48 @@
+\begin{thebibliography}{1}
+
+\bibitem{everitt2011cluster}
+Brian Everitt,
+\newblock {\em Cluster Analysis},
+\newblock John Wiley \& Sons, 2011.
+
+\bibitem{hennig2015handbook}
+Christian Hennig, Marina Meila, Fionn Murtagh, and Roberto Rocci,
+\newblock {\em Handbook of Cluster Analysis},
+\newblock Chapman and Hall/CRC, December 2015.
+
+\bibitem{straub2015small}
+Julian Straub, Trevor Campbell, Jonathan~P. How, and John~W. Fisher,
+\newblock ``Small-variance nonparametric clustering on the hypersphere,''
+\newblock in {\em 2015 IEEE Conference on Computer Vision and Pattern
+  Recognition (CVPR)}, June 2015, pp. 334--342.
+
+\bibitem{schroff2015facenet}
+F.~Schroff, D.~Kalenichenko, and J.~Philbin,
+\newblock ``Facenet: A unified embedding for face recognition and clustering,''
+\newblock in {\em 2015 IEEE Conference on Computer Vision and Pattern
+  Recognition (CVPR)}, June 2015, pp. 815--823.
+
+\bibitem{wan2017ge2e}
+Li~Wan, Quan Wang, Alan Papir, and Ignacio~Lopez Moreno,
+\newblock ``Generalized end-to-end loss for speaker verification,''
+\newblock {\em arXiv preprint arXiv:1710.10467}, 2017.
+
+\bibitem{wang2017speaker}
+Quan Wang, Carlton Downey, Li~Wan, Philip~Andrew Mansfield, and Ignacio~Lopez
+  Moreno,
+\newblock ``Speaker diarization with lstm,''
+\newblock {\em arXiv preprint arXiv:1710.10468}, 2017.
+
+\bibitem{buss2001spherical}
+Samuel~R. Buss and Jay~P. Fillmore,
+\newblock ``Spherical averages and applications to spherical splines and
+  interpolation,''
+\newblock {\em ACM Transactions on Graphics}, vol. 20, no. 2, pp. 95--126,
+  2001.
+
+\bibitem{kuhn1955hungarian}
+Harold~W. Kuhn,
+\newblock ``The hungarian method for the assignment problem,''
+\newblock {\em Naval Research Logistics Quarterly}, vol. 2, pp. 83--97, 1955.
+
+\end{thebibliography}
