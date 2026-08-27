@@ -29,6 +29,15 @@ class TestLinksClusterer(unittest.TestCase):
     self.assertEqual(clusterer.tc, 0.55)
     self.assertEqual(clusterer.ts, 0.75)
     self.assertEqual(clusterer.tp, 0.92)
+    self.assertEqual(clusterer.Tc, 0.55)
+    self.assertEqual(clusterer.Ts, 0.75)
+    self.assertEqual(clusterer.Tp, 0.92)
+    self.assertEqual(clusterer.cluster_similarity_threshold, 0.55)
+    self.assertEqual(clusterer.subcluster_similarity_threshold, 0.75)
+    self.assertEqual(clusterer.pair_similarity_maximum, 0.92)
+    # Check s and s_tilde methods
+    self.assertAlmostEqual(clusterer.s(1), 0.55 ** 2, places=6)
+    self.assertAlmostEqual(clusterer.s_tilde(1), 0.55 ** 2, places=6)
 
   def test_empty_input(self):
     clusterer = LinksClusterer(tc=0.5, ts=0.8)

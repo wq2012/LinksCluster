@@ -92,6 +92,11 @@ def anisotropic_threshold(
   return float(tc_sq + beta * (raw_s - tc_sq))
 
 
+# Aliases matching paper notation
+s = multi_threshold
+s_tilde = anisotropic_threshold
+
+
 def enforce_ordered_labels(labels: np.ndarray) -> np.ndarray:
   """Transform the label sequence to an ordered form starting at 0.
 

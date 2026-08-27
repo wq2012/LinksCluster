@@ -35,11 +35,12 @@ class LinksClusterer:
       pair_similarity_maximum: Tp, upper limit for pair similarity taking into
         account intra-subcluster correlations and anisotropy. Must be in
         (Tc^2, 1]. Defaults to 1.0 (isotropic) if not specified.
-      tc: alias for cluster_similarity_threshold.
-      ts: alias for subcluster_similarity_threshold.
-      tp: alias for pair_similarity_maximum.
-      use_theoretical_norm: if True, centroid normalization uses the
-        theoretical norm in Eq. 12; if False (recommended), normalizes by
+      tc: alias for cluster_similarity_threshold (Tc in paper).
+      ts: alias for subcluster_similarity_threshold (Ts in paper).
+      tp: alias for pair_similarity_maximum (Tp in paper).
+      use_theoretical_norm: if True, centroid normalization uses Eq. 12
+        theoretical norm \\sqrt{k^2 cos^2\\theta_c + k sin^2\\theta_c}; if False
+        (recommended for arbitrary empirical distributions), normalizes by
         empirical L2 norm to ensure unit length on S^{N-1}.
       normalize_input: if True, input vectors are L2-normalized to unit length.
       return_online_labels: if True, fit_predict returns the online assigned
@@ -65,6 +66,14 @@ class LinksClusterer:
     if self.tp < self._tc_sq or self.tp > 1.0:
       raise ValueError(
           f"tp must be in [{self._tc_sq:.4f}, 1.0], got {self.tp}")
+
+    # Aliases matching paper notation
+    self.cluster_similarity_threshold = self.tc
+    self.subcluster_similarity_threshold = self.ts
+    self.pair_similarity_maximum = self.tp
+    self.Tc = self.tc
+    self.Ts = self.ts
+    self.Tp = self.tp
 
     self.use_theoretical_norm = use_theoretical_norm
     self.normalize_input = normalize_input
@@ -102,7 +111,7 @@ class LinksClusterer:
 
   @property
   def n_clusters_(self) -> int:
-    """Number of active clusters (connected components)."""
+    """Number of active clusters (connected components in the graph)."""
     return len(self._cluster_subclusters)
 
   @property
@@ -116,17 +125,38 @@ class LinksClusterer:
     return list(self._subclusters)
 
   def _alloc_cluster_id(self) -> int:
+    """Allocate a new unique integer cluster ID."""
     cid = self._next_cluster_id_val
     self._next_cluster_id_val += 1
     return cid
 
-  def _threshold(self, k1: int, k2: int = 1) -> float:
-    """Compute threshold s_tilde(k1, k2)."""
-    term1 = 1.0 + self._alpha / k1
-    term2 = 1.0 + self._alpha / k2
-    raw_s = 1.0 / np.sqrt(term1 * term2)
+  def s(self, k: int, k_prime: int = 1) -> float:
+    """Cosine similarity threshold s(k) or s(k, k') (Eqs. 13 & 16 in paper).
+
+    Args:
+      k: size of the first subcluster
+      k_prime: size of the second subcluster (defaults to 1 for s(k))
+
+    Returns:
+      threshold: float threshold value
+    """
+    term1 = 1.0 + self._alpha / k
+    term2 = 1.0 + self._alpha / k_prime
+    return float(1.0 / np.sqrt(term1 * term2))
+
+  def s_tilde(self, k: int, k_prime: int = 1) -> float:
+    """Anisotropic threshold \\tilde{s}(k, k') or \\tilde{s}(k) (Eqs. 24 & 25).
+
+    Args:
+      k: size of the first subcluster
+      k_prime: size of the second subcluster (defaults to 1 for \\tilde{s}(k))
+
+    Returns:
+      threshold: float interpolated threshold value
+    """
+    raw_s = self.s(k, k_prime)
     if self._beta == 1.0:
-      return float(raw_s)
+      return raw_s
     return float(self._tc_sq + self._beta * (raw_s - self._tc_sq))
 
   def _ensure_centroid_capacity(self, needed: int, dim: int):
@@ -176,8 +206,7 @@ class LinksClusterer:
     """Remove a subcluster at idx using swap-and-pop for O(1) removal."""
     last_idx = len(self._subclusters) - 1
     sc_to_remove = self._subclusters[idx]
-    sc_id = sc_to_remove.id if hasattr(sc_to_remove, "id") else (
-        sc_to_remove.subcluster_id)
+    sc_id = sc_to_remove.subcluster_id
 
     if idx != last_idx:
       last_sc = self._subclusters[last_idx]
@@ -197,11 +226,13 @@ class LinksClusterer:
   def predict_next(self, x: np.ndarray) -> int:
     """Assign cluster ID to a new incoming vector in an online stream.
 
+    Implements Section 3.3 and Section 3.4 of the paper.
+
     Args:
       x: 1D or 2D vector of shape (n_features,) or (1, n_features)
 
     Returns:
-      cluster_id: integer cluster identifier assigned to this vector
+      cluster_id: integer cluster identifier assigned to vector x
     """
     x = np.asarray(x, dtype=np.float64).flatten()
     if self.n_features_in_ is None:
@@ -218,35 +249,41 @@ class LinksClusterer:
 
     num_subclusters = len(self._subclusters)
     if num_subclusters == 0:
+      # First vector starts first subcluster and cluster
       cid = self._alloc_cluster_id()
       self._add_subcluster(x, t, cid)
       self._online_labels.append(cid)
       return cid
 
+    # Eq. 19: J = argmax_j { x . \\hat{\\mu}_j }
     sims = self._centroids[:num_subclusters] @ x
-    best_j = int(np.argmax(sims))
-    best_sim = float(sims[best_j])
-    sc_j = self._subclusters[best_j]
+    J = int(np.argmax(sims))
+    x_dot_mu_J = float(sims[J])
+    sc_J = self._subclusters[J]
+    k_J = sc_J.k
 
-    if best_sim >= self.ts:
+    # Eq. 20: x . \\hat{\\mu}_J >= Ts
+    if x_dot_mu_J >= self.Ts:
       # Inequality 20 holds: add x to subcluster J
-      assigned_cid = sc_j.cluster_id
+      assigned_cid = sc_J.cluster_id
       self._online_labels.append(assigned_cid)
-      sc_j.add_vector(x, t)
-      self._centroids[best_j] = sc_j.centroid
+      sc_J.add_vector(x, t)
+      self._centroids[J] = sc_J.centroid
 
-      # Update clusters (Section 3.4)
-      self._update_clusters(sc_j.subcluster_id)
+      # Updating clusters (Section 3.4)
+      self._update_clusters(sc_J.subcluster_id)
       return assigned_cid
     else:
-      # Inequality 20 fails: start new subcluster containing just x
-      # Inequality 21 check: x . mu_J >= s(k_J)
-      thresh_kj = self._threshold(sc_j.count, 1)
-      if best_sim >= thresh_kj:
-        assigned_cid = sc_j.cluster_id
+      # Inequality 20 does not hold: start a new subcluster containing just x.
+      # Eq. 21: x . \\hat{\\mu}_J >= s(k_J) (anisotropic: \\tilde{s}(k_J))
+      thresh_kJ = self.s_tilde(k_J, 1)
+      if x_dot_mu_J >= thresh_kJ:
+        # Include new subcluster in same cluster as J, add edge (new_sc, J)
+        assigned_cid = sc_J.cluster_id
         new_sc_id = self._add_subcluster(x, t, assigned_cid)
-        self._graph.add_edge(new_sc_id, sc_j.subcluster_id)
+        self._graph.add_edge(new_sc_id, sc_J.subcluster_id)
       else:
+        # Start new cluster
         assigned_cid = self._alloc_cluster_id()
         self._add_subcluster(x, t, assigned_cid)
 
@@ -258,75 +295,100 @@ class LinksClusterer:
     return self.predict_next(x)
 
   def _update_clusters(self, start_sc_id: int):
-    """Perform subcluster merging and edge validity checks (Section 3.4)."""
-    # Step 1: Recursive merging check with neighbors joined by an edge
-    curr_id = start_sc_id
-    while curr_id in self._subcluster_map:
-      curr_sc = self._subcluster_map[curr_id]
-      merged_any = False
-      nbr_ids = list(self._graph.neighbors(curr_id))
+    """Perform subcluster merging and edge validity checks (Section 3.4).
 
-      for nbr_id in nbr_ids:
-        if nbr_id not in self._subcluster_map:
+    Args:
+      start_sc_id: identifier of the updated subcluster i
+    """
+    # 1. Subcluster merging:
+    # "If this brings it within the subcluster similarity threshold of the
+    # centroid of another subcluster currently joined to the first by an edge,
+    # then the two are merged. In other words, if \\hat{\\mu}_i . \\hat{\\mu}_j
+    # >= Ts, then nodes i and j are replaced with a single node containing the
+    # vectors of both, and with the edge connections of both. Since the merging
+    # process also results in a new subcluster centroid, this check is
+    # continued recursively on affected subclusters."
+    i = start_sc_id
+    while i in self._subcluster_map:
+      sc_i = self._subcluster_map[i]
+      merged_any = False
+      nbr_ids = list(self._graph.neighbors(i))
+
+      for j in nbr_ids:
+        if j not in self._subcluster_map:
           continue
-        nbr_sc = self._subcluster_map[nbr_id]
-        sim = float(np.dot(curr_sc.centroid, nbr_sc.centroid))
-        if sim >= self.ts:
-          curr_sc.merge_with(nbr_sc)
-          self._centroids[curr_sc.index] = curr_sc.centroid
-          self._graph.merge_nodes(curr_id, nbr_id)
-          self._remove_subcluster_by_index(nbr_sc.index)
+        sc_j = self._subcluster_map[j]
+        # \\hat{\\mu}_i . \\hat{\\mu}_j >= Ts
+        mu_i_dot_mu_j = float(np.dot(sc_i.mu_hat, sc_j.mu_hat))
+        if mu_i_dot_mu_j >= self.Ts:
+          # Merge node j into node i
+          sc_i.merge_with(sc_j)
+          self._centroids[sc_i.index] = sc_i.centroid
+          self._graph.merge_nodes(keep_id=i, remove_id=j)
+          self._remove_subcluster_by_index(sc_j.index)
           merged_any = True
-          break
+          break  # Check continued recursively on affected subcluster i
 
       if not merged_any:
         break
 
-    if curr_id not in self._subcluster_map:
+    if i not in self._subcluster_map:
       return
 
-    # Step 2: Edge validity check on edges joining affected node
-    curr_sc = self._subcluster_map[curr_id]
-    nbr_ids = list(self._graph.neighbors(curr_id))
+    # 2. Edge validity check:
+    # "Next, the edges joining affected nodes are checked for validity.
+    # The edge joining subclusters i and j is removed if the following does
+    # not continue to hold:
+    # \\hat{\\mu}_i . \\hat{\\mu}_j >= s(k_i, k_j) (Eq. 22)"
+    sc_i = self._subcluster_map[i]
+    nbr_ids = list(self._graph.neighbors(i))
 
-    for nbr_id in nbr_ids:
-      if not self._graph.has_edge(curr_id, nbr_id):
+    for j in nbr_ids:
+      if not self._graph.has_edge(i, j):
         continue
-      if nbr_id not in self._subcluster_map:
+      if j not in self._subcluster_map:
         continue
-      nbr_sc = self._subcluster_map[nbr_id]
-      sim = float(np.dot(curr_sc.centroid, nbr_sc.centroid))
-      thresh = self._threshold(curr_sc.count, nbr_sc.count)
+      sc_j = self._subcluster_map[j]
+      k_i = sc_i.k
+      k_j = sc_j.k
+      mu_i_dot_mu_j = float(np.dot(sc_i.mu_hat, sc_j.mu_hat))
+      thresh_ij = self.s_tilde(k_i, k_j)
 
-      if sim < thresh:
-        self._graph.remove_edge(curr_id, nbr_id)
-        cluster_nodes = self._cluster_subclusters.get(curr_sc.cluster_id, set())
-        severed, comp_nbr = self._graph.check_severed(
-            nbr_id, curr_id, allowed_nodes=cluster_nodes)
+      if mu_i_dot_mu_j < thresh_ij:
+        # Edge (i, j) removed
+        self._graph.remove_edge(i, j)
+        cluster_nodes = self._cluster_subclusters.get(sc_i.cluster_id, set())
+        severed, comp_j = self._graph.check_severed(
+            start_id=j, target_id=i, allowed_nodes=cluster_nodes)
 
         if severed:
-          # Attempt re-join: look for partner node in comp_nbr
+          # "After severing a cluster in two by removing an edge, an attempt is
+          # made to re-join the two parts by adding an edge from the affected
+          # node to a new partner node that does satisfy inequality 22."
           best_partner = None
           best_partner_sim = -2.0
-          for w_id in comp_nbr:
-            w_sc = self._subcluster_map[w_id]
-            sim_w = float(np.dot(curr_sc.centroid, w_sc.centroid))
-            thresh_w = self._threshold(curr_sc.count, w_sc.count)
-            if sim_w >= thresh_w and sim_w > best_partner_sim:
-              best_partner = w_id
-              best_partner_sim = sim_w
+          for w in comp_j:
+            sc_w = self._subcluster_map[w]
+            k_w = sc_w.k
+            mu_i_dot_mu_w = float(np.dot(sc_i.mu_hat, sc_w.mu_hat))
+            thresh_iw = self.s_tilde(k_i, k_w)
+            if mu_i_dot_mu_w >= thresh_iw and mu_i_dot_mu_w > best_partner_sim:
+              best_partner = w
+              best_partner_sim = mu_i_dot_mu_w
 
           if best_partner is not None:
-            self._graph.add_edge(curr_id, best_partner)
+            # Re-join parts by adding edge (i, best_partner)
+            self._graph.add_edge(i, best_partner)
           else:
-            # Permanently split
+            # "If no such partner is found, then the cluster remains permanently
+            # split."
             new_cid = self._alloc_cluster_id()
-            old_cid = curr_sc.cluster_id
-            for w_id in comp_nbr:
-              w_sc = self._subcluster_map[w_id]
-              self._cluster_subclusters[old_cid].discard(w_id)
-              self._cluster_subclusters[new_cid].add(w_id)
-              w_sc.cluster_id = new_cid
+            old_cid = sc_i.cluster_id
+            for w in comp_j:
+              sc_w = self._subcluster_map[w]
+              self._cluster_subclusters[old_cid].discard(w)
+              self._cluster_subclusters[new_cid].add(w)
+              sc_w.cluster_id = new_cid
             if not self._cluster_subclusters[old_cid]:
               del self._cluster_subclusters[old_cid]
 
@@ -431,15 +493,15 @@ class LinksClusterer:
     best_j = np.argmax(sims, axis=1)
     preds = np.empty(X.shape[0], dtype=int)
 
-    for i in range(X.shape[0]):
-      j = int(best_j[i])
-      sim = float(sims[i, j])
+    for idx in range(X.shape[0]):
+      j = int(best_j[idx])
+      sim = float(sims[idx, j])
       sc = self._subclusters[j]
-      thresh = self._threshold(sc.count, 1)
+      thresh = self.s_tilde(sc.k, 1)
       if sim >= thresh or self.unassigned_label is None:
-        preds[i] = sc.cluster_id
+        preds[idx] = sc.cluster_id
       else:
-        preds[i] = self.unassigned_label
+        preds[idx] = self.unassigned_label
 
     return preds
 

@@ -20,11 +20,14 @@ class TestSubcluster(unittest.TestCase):
         index=0,
         use_theoretical_norm=False)
     self.assertEqual(sc.subcluster_id, 0)
+    self.assertEqual(sc.id, 0)
     self.assertEqual(sc.cluster_id, 1)
     self.assertEqual(sc.count, 1)
+    self.assertEqual(sc.k, 1)
     self.assertEqual(sc.vector_indices, [0])
     self.assertAlmostEqual(np.linalg.norm(sc.centroid), 1.0, places=6)
     np.testing.assert_allclose(sc.centroid, v)
+    np.testing.assert_allclose(sc.mu_hat, v)
 
   def test_add_vector(self):
     v1 = utils.l2_normalize(np.array([1.0, 0.0]))
