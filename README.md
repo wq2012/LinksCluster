@@ -5,7 +5,7 @@
 [![Downloads](https://static.pepy.tech/badge/linkscluster)](https://www.pepy.tech/projects/linkscluster)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-Python implementation of the **Links** high-dimensional online clustering algorithm, designed for unit vectors on the hypersphere $S^{N-1}$.
+Python implementation of the **Links** high-dimensional online clustering algorithm, designed for unit vectors on the hypersphere S^(N-1).
 
 ## Overview
 
@@ -130,23 +130,25 @@ clusterer = configs.ge2e_voice_clusterer
 ### Two-Level Hierarchy
 
 Links represents data using a two-level hierarchy:
-- **Subclusters**: Indivisible nodes in a graph representing tight groups of vectors whose pairwise similarities exceed $T_s$.
+- **Subclusters**: Indivisible nodes in a graph representing tight groups of vectors whose pairwise similarities exceed `Ts`.
 - **Clusters**: Connected components in the graph of subclusters joined by edges.
 
 This hierarchy scales with the number of *subclusters* rather than the number of vectors, enabling ultra-fast real-time operation.
 
 ### Algorithm Steps
 
-1. **Cosine Similarity**: When a new vector $\mathbf{x}$ arrives, its cosine similarity to all active subcluster centroids $\hat{\bm{\upmu}}_j$ is computed in a single vectorized matrix-vector multiplication:
-   $$J = \operatorname{argmax}_j \{\mathbf{x} \cdot \hat{\bm{\upmu}}_j\}$$
+1. **Cosine Similarity**: When a new vector `x` arrives, its cosine similarity to all active subcluster centroids is computed in a single vectorized matrix-vector multiplication:
+   ```
+   J = argmax_j (x · μ_j)
+   ```
 
 2. **Subcluster Addition vs. New Subcluster**:
-   - If $\mathbf{x} \cdot \hat{\bm{\upmu}}_J \ge T_s$, $\mathbf{x}$ is added to subcluster $J$, and its centroid is updated.
-   - If $\mathbf{x} \cdot \hat{\bm{\upmu}}_J < T_s$, a new subcluster containing just $\mathbf{x}$ is created. It is linked to subcluster $J$ if $\mathbf{x} \cdot \hat{\bm{\upmu}}_J \ge \tilde{s}(k_J)$; otherwise, it starts a new cluster.
+   - If `x · μ_J >= Ts`: `x` is added to subcluster `J`, and its centroid is updated.
+   - If `x · μ_J < Ts`: a new subcluster containing just `x` is created. It is linked to subcluster `J` if `x · μ_J >= s(kJ)` (or `s̃(kJ)` with anisotropy); otherwise, it starts a new cluster.
 
-3. **Subcluster Merging**: If updating subcluster $J$ brings its centroid within $T_s$ of an adjacent neighbor, the two subclusters merge recursively.
+3. **Subcluster Merging**: If updating subcluster `J` brings its centroid within `Ts` of an adjacent neighbor, the two subclusters merge recursively.
 
-4. **Edge Validity & Cluster Splitting**: Edges incident to affected nodes are checked against the threshold $\tilde{s}(k_i, k_j)$. If an edge falls below the threshold, it is removed. If the removal severs the cluster, Links attempts to re-join the two components via a valid partner node; if none exists, the cluster permanently splits.
+4. **Edge Validity & Cluster Splitting**: Edges incident to affected nodes are checked against the threshold `s(ki, kj)` (or `s̃(ki, kj)`). If an edge falls below the threshold, it is removed. If the removal severs the cluster, Links attempts to re-join the two components via a valid partner node; if none exists, the cluster permanently splits.
 
 ---
 
@@ -156,9 +158,9 @@ Links has three intuitive hyperparameters:
 
 | Parameter | Symbol | Range | Description |
 | :--- | :--- | :--- | :--- |
-| `cluster_similarity_threshold` (or `tc`) | $T_c = \cos\theta_c$ | $(0, 1)$ | Proximity threshold for vectors belonging to the same cluster. |
-| `subcluster_similarity_threshold` (or `ts`) | $T_s$ | $(0, 1)$ | Threshold for grouping vectors into tight subclusters ($T_s \ge T_c$). |
-| `pair_similarity_maximum` (or `tp`) | $T_p$ | $(T_c^2, 1]$ | Asymptotic similarity ceiling accounting for intra-cluster correlation and anisotropy. Default is `1.0` (isotropic). |
+| `cluster_similarity_threshold` (or `tc`) | `Tc = cos(θc)` | `(0, 1)` | Proximity threshold for vectors belonging to the same cluster. |
+| `subcluster_similarity_threshold` (or `ts`) | `Ts` | `(0, 1)` | Threshold for grouping vectors into tight subclusters (`Ts >= Tc`). |
+| `pair_similarity_maximum` (or `tp`) | `Tp` | `(Tc^2, 1]` | Asymptotic similarity ceiling accounting for intra-cluster correlation and anisotropy. Default is `1.0` (isotropic). |
 
 ### Accuracy Evaluation
 
@@ -177,7 +179,7 @@ print(f"Hungarian Clustering Accuracy: {acc * 100:.2f}%")
 
 Links is designed to be **ultra fast and efficient**:
 - **Vectorized Distance Calculations**: Subcluster centroids are kept in contiguous memory for BLAS level-2 matrix-vector dot products (`_centroids @ x`), bypassing Python loop overhead.
-- **$O(1)$ Dynamic Subcluster Management**: Subcluster additions and deletions (merging) utilize swap-and-pop in the contiguous centroid matrix.
+- **O(1) Dynamic Subcluster Management**: Subcluster additions and deletions (merging) utilize swap-and-pop in the contiguous centroid matrix.
 - **High Throughput**: Capable of clustering **>50,000 - 100,000 vectors per second** on standard CPU hardware.
 
 ---
